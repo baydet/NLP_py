@@ -19,13 +19,7 @@ def get_data(articles):
             wiki2plain = Wiki2Plain(raw)
             content = wiki2plain.text
             # print content
-            res = re.findall('[A-Z][^\.=;कš\*]*' + 'dog' + '[^\.;कš\*]*', content)
+            res = re.findall('[A-Z][^\.=;कš\*]*' + article.lower() + '[^\.;कš\*]*', content)
             ret_list.append(res)
 
     return ret_list
-
-
-
-
-if __name__ == '__main__':
-    print get_data()

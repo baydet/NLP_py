@@ -1,12 +1,17 @@
 # coding=utf-8
 import json
+import os
 from jsonrpc import ServerProxy, JsonRpc20, TransportTcpIp
 from pprint import pprint
 from wiki_parser import *
 from entities import *
+from clustering_manager import *
+
+
+
 
 lemma_key = 'Lemma'
-
+statements_output = 'retreived_statements.txt'
 dependencies = ['nsubj', 'rep', 'dobj']
 # modifiers = ['aux', u'animal', u'has']
 #                                    [u'cop', u'animal', u'been'],
@@ -15,8 +20,9 @@ dependencies = ['nsubj', 'rep', 'dobj']
 sent_key = 'sentences'
 deps_key = 'dependencies'
 words_key = 'words'
-concepts = ['dog']
+concepts = ['mouse', 'mammal', 'amniote', 'tetrapod']
 candidates = []
+statements = []
 
 
 class StanfordNLP:
@@ -29,15 +35,15 @@ class StanfordNLP:
         # print self.server.parse(text)
         return json.loads(self.server.parse(text))
 
-def build_statement(sent, main_dep):
-    """
 
+def build_statement(sent, main_dep, word):
+    """
     :param sent:
     :param main_dep:
     :return:
     """
     stat = Statement()
-    stat.left = Concept(main_dep[2])
+    stat.left = Concept(word[1][lemma_key])
     vp = main_dep[1]
     #searching for Lemma form of linked verb
     for word in sent[sent_key][0][words_key]:
@@ -46,7 +52,7 @@ def build_statement(sent, main_dep):
                 stat.v = word[1][lemma_key]
             if word[1]['PartOfSpeech'][0] == 'N':
                 stat.right.body = word[1][lemma_key]
-                stat.v = 'is a'
+                stat.v = 'is_a'
             break
     #searching for right part of statement
     right_part = stat.right
@@ -63,10 +69,7 @@ def build_statement(sent, main_dep):
     stat.right = right_part
     print bcolors.OKGREEN + stat.__str__()
     # pprint(sent)
-
-
-
-    return
+    return stat
 
 def analyze_deps(result):
     # print result[sent_key][0][deps_key]
@@ -74,16 +77,21 @@ def analyze_deps(result):
     try:
         for dep in result[sent_key][0][deps_key]:
             if dep[0] == 'nsubj':
-                if concepts.__contains__(dep[2]):
-                    build_statement(result, dep)
+                for wrd in result[sent_key][0][words_key]:
+                    if wrd[1][lemma_key] in concepts:
+                        s = build_statement(result, dep, wrd)
+                        if s.right.body != '':
+                            statements.append(s)
     except:
         print '\033[91m' + 'error during analyzing in sentence'
         print result
 
+    return statements
+
 def process_sentence(text):
     global result, Tree, tree
     result = nlp.parse(text)
-    analyze_deps(result)
+    ret_list = analyze_deps(result)
     # pprint(result)
     from nltk.tree import Tree
 
@@ -92,21 +100,51 @@ def process_sentence(text):
     # tree.__contains__()
 
 
+def store_statements():
+    for s in statements:
+        f.write(s.__str__())
+        f.write('\n')
+    return
+
+
+def read_from_file():
+    f = open(statements_output, 'r')
+    ret_list = []
+    lines = f.readlines()
+    for line in lines:
+        parts = line.split(' ')
+        s = Statement()
+        s.left.body = parts[0]
+        s.v = parts[1]
+        for i in range(2, len(parts)-1):
+            s.right.modifiers.append(parts[i])
+        s.right.body = parts[len(parts)-1].split('\n')[0]
+        ret_list.append(s)
+        # print s
+    return ret_list
 
 
 if __name__ == '__main__':
     nlp = StanfordNLP()
-    text = get_data(concepts)
+    articles = get_data(concepts)
     s = ''
-    for sentence in text:
-        try:
-            print bcolors.ENDC + sentence
-            s = sentence
-            if len(sentence) < 400:
-                process_sentence(sentence)
-                # break
-                # pprint(tree)
-                # tree.draw()
-        except:
-            print bcolors.FAIL + 'parsing error in sentence ' + s
+    if not os.path.isfile(statements_output):
+        for article in articles:
+            for sentence in article:
+                try:
+                    print bcolors.ENDC + sentence
+                    s = sentence
+                    if len(sentence) < 400:
+                        process_sentence(sentence)
+                        # break
+                        # pprint(tree)
+                        # tree.draw()
+                except:
+                    print bcolors.FAIL + 'parsing error in sentence ' + s
+        f = open(statements_output, 'w+')
+        store_statements()
+    else:
+        statements = read_from_file()
+    synset_man = SynsetRetreiver()
+    synset_man.find_synsets(statements)
 
