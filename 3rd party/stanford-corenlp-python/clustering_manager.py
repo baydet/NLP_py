@@ -114,7 +114,7 @@ class SynsetRetreiver:
 
                     if level > 0:
                         ee.append(level)
-                        # print self.pl.keys()[i] + ' ' + self.pl.keys()[j] + ' - %f' % level
+                        print self.pl.keys()[i] + ' ' + self.pl.keys()[j] + ' - %f' % level
         print sum(ee)/len(ee)
 
 

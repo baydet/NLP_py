@@ -7,12 +7,9 @@ from wiki_parser import *
 from entities import *
 from clustering_manager import *
 
-
-
-
 lemma_key = 'Lemma'
 statements_output = 'retreived_statements.txt'
-dependencies = ['nsubj', 'rep', 'dobj']
+dependencies = ['nsubj', 'prep', 'dobj']
 # modifiers = ['aux', u'animal', u'has']
 #                                    [u'cop', u'animal', u'been'],
 #                                    [u'det', u'animal', u'the'],
@@ -20,7 +17,8 @@ dependencies = ['nsubj', 'rep', 'dobj']
 sent_key = 'sentences'
 deps_key = 'dependencies'
 words_key = 'words'
-concepts = ['mouse', 'mammal', 'amniote', 'tetrapod']
+# 'mouse', 'mammal', 'amniote',
+concepts = ['dog', 'mammal', 'tetrapod']
 candidates = []
 statements = []
 
@@ -42,6 +40,7 @@ def build_statement(sent, main_dep, word):
     :param main_dep:
     :return:
     """
+    ret_list = []
     stat = Statement()
     stat.left = Concept(word[1][lemma_key])
     vp = main_dep[1]
@@ -53,35 +52,66 @@ def build_statement(sent, main_dep, word):
             if word[1]['PartOfSpeech'][0] == 'N':
                 stat.right.body = word[1][lemma_key]
                 stat.v = 'is_a'
+            if word[1]['PartOfSpeech'][0] == 'J':
+                stat.right.body = word[1][lemma_key]
+                stat.v = 'is_a'
             break
     #searching for right part of statement
-    right_part = stat.right
+    # right_part = stat.right
+
+    #search for right modifiers
+    if not stat.right.body == '':
+        for dep in sent[sent_key][0][deps_key]:
+            if dep[0] == 'amod':
+                if dep[1] == stat.right.body:
+                    stat.right.modifiers.append(dep[2])
+        print bcolors.OKGREEN + stat.__str__()
+        ret_list.append(stat)
+        return ret_list
+
     for dep in sent[sent_key][0][deps_key]:
+        sta_cond = Statement()
+        sta_cond.left = Concept(stat.left.body)
+        sta_cond.v = stat.v
+        prep = ''
+        right_part = Concept('')
         if dep[0] == 'dobj':
             if dep[1] in [main_dep[1]]:
                 right_part.body = dep[2]
-            break
-    #search for right modifiers
-    for dep in sent[sent_key][0][deps_key]:
-        if dep[0] == 'amod':
-            if dep[1] == right_part.body:
-                right_part.modifiers.append(dep[2])
-    stat.right = right_part
-    print bcolors.OKGREEN + stat.__str__()
+        if 'prep' in dep[0]:
+            if dep[1] in [main_dep[1]]:
+                right_part.body = dep[2]
+                tmp = dep[0].split('_')
+                prep = '_' + tmp[1]
+
+        #search for right modifiers
+        if not right_part.body == '':
+            for dep in sent[sent_key][0][deps_key]:
+                if dep[0] == 'amod':
+                    if dep[1] == right_part.body:
+                        right_part.modifiers.append(dep[2])
+            sta_cond.right = right_part
+
+            sta_cond.v += prep
+            print bcolors.OKGREEN + sta_cond.__str__()
+            ret_list.append(sta_cond)
+
     # pprint(sent)
-    return stat
+    return ret_list
 
 def analyze_deps(result):
     # print result[sent_key][0][deps_key]
     # print result[sent_key][0][deps_key]
     try:
         for dep in result[sent_key][0][deps_key]:
-            if dep[0] == 'nsubj':
+            if 'nsubj' in dep[0]:
                 for wrd in result[sent_key][0][words_key]:
                     if wrd[1][lemma_key] in concepts:
-                        s = build_statement(result, dep, wrd)
-                        if s.right.body != '':
-                            statements.append(s)
+                        if dep[2].lower() == wrd[0].lower():
+                            s_list = build_statement(result, dep, wrd)
+                            for s in s_list:
+                                if s.right.body != '':
+                                    statements.append(s)
     except:
         print '\033[91m' + 'error during analyzing in sentence'
         print result
@@ -92,7 +122,7 @@ def process_sentence(text):
     global result, Tree, tree
     result = nlp.parse(text)
     ret_list = analyze_deps(result)
-    # pprint(result)
+    pprint(result)
     from nltk.tree import Tree
 
     # tree = Tree.parse(result['sentences'][0]['parsetree'])
@@ -127,7 +157,8 @@ def read_from_file():
 if __name__ == '__main__':
     nlp = StanfordNLP()
     articles = get_data(concepts)
-    s = ''
+    # s = 'The first tetrapods were cool aquatic and fed primarily on fish'
+    # process_sentence(s)
     if not os.path.isfile(statements_output):
         for article in articles:
             for sentence in article:

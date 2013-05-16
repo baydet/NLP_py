@@ -2,6 +2,7 @@ class Concept:
     def __init__(self, body):
         self.body = body
         self.modifiers = []
+        self.prep = ''
 
     def __str__(self):
         res_str = ''
